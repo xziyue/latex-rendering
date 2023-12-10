@@ -137,6 +137,9 @@
 
 \tl_new:N \l_bmp_row_tl
 \tl_new:N \l_bmp_col_tl
+\int_new:N \l_bmp_tmpa_int
+\fp_new:N \l_bmp_tmpa_fp
+\tl_new:N \l_bmp_tmpa_tl
 \newcommand{\RenderToBMP}[1]
 {
     % we do not want to deal with padding (lazy), so just make sure width is mulitple of 4
@@ -156,7 +159,11 @@
         \iow_term:x {Rendering~BMP~line~\l_bmp_row_tl}
         \int_step_variable:nNn {\ImageWidth} \l_bmp_col_tl 
         {
-            \bin_write_byte_clist:n {255,255,255} % one pixel
+            % generate gradient image with gamma correction
+            \fp_set:Nn \l_bmp_tmpa_fp { round( ( (\l_bmp_col_tl  / \ImageWidth)  ** 1.2) * 255.0 ) }
+            \int_set:Nn \l_bmp_tmpa_int {\fp_use:N \l_bmp_tmpa_fp}
+            \tl_set:Nx \l_bmp_tmpa_tl {\int_use:N \l_bmp_tmpa_int}
+            \exp_args:Nx \bin_write_byte_clist:n {\l_bmp_tmpa_tl,\l_bmp_tmpa_tl,\l_bmp_tmpa_tl} % one pixel
         }
     }
 

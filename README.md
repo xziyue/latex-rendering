@@ -13,7 +13,7 @@ See [shading.pdf](./shading.pdf) for more details about shading parameters.
 - Linux system (for running Makefiles)
 - Python 3.6+ with [Pillow](https://pypi.org/project/Pillow/)
 
-
+Use the `Makefile` to generate the images.
 
 ## Why is Python required
 

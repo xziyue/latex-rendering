@@ -1,0 +1,180 @@
+\documentclass{scrartcl}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{newtxtext,newtxmath}
+\usepackage[scale=0.85]{tgcursor}
+\usepackage{microtype}
+\usepackage{babel}
+\usepackage{hyperref}
+
+
+\title{Phong Shading with \LaTeX}
+\author{Alan Xiang}
+\date{\today}
+
+
+\begin{document}
+
+\maketitle
+
+\ExplSyntaxOn
+
+% declare vectors
+\newcommand{\DeclareVec}[2]
+{
+    \int_set:Nn \l_tmpa_int {\clist_count:n {#2}}
+    \cs_if_exist:cF {#1}
+    {
+        \fparray_new:cn {#1} {\int_use:N \l_tmpa_int}
+    }
+    \int_set:Nn \l_tmpa_int {1}
+    \clist_map_inline:nn {#2}
+    {
+        \fparray_gset:cnn {#1} {\int_use:N \l_tmpa_int} {##1}
+        \int_incr:N \l_tmpa_int
+    }
+}
+
+\newcommand{\DeclareConstFP}[2]
+{
+    \fp_if_exist:cF {#1}
+    {
+        \fp_new:c {#1}
+    }
+    \fp_gset:cn {#1} {#2}
+}
+
+\newcommand{\DeclareConstI}[2]
+{
+    \tl_if_exist:cF {#1}
+    {
+        \tl_new:c {#1}
+    }
+    \tl_gset:cn {#1} {#2}
+}
+
+% create a new binary output file
+\tl_new:N \g_bin_filename_tl
+\cs_new:Npn \bin_open:n #1
+{
+    \tl_gset:Nn \g_bin_filename_tl {#1}
+    \iow_open:Nn \g_tmpa_iow {\jobname-bin.tmp}
+}
+
+\cs_new:Npn \bin_close:
+{
+    \iow_term:n {Converting~LaTeX~output~to~binary}
+    \iow_close:N \g_tmpa_iow
+    \exp_args:Nx \sys_shell_now:n {python3 ~ latex_output_to_binary.py ~ \jobname-bin.tmp ~ \g_bin_filename_tl}
+}
+
+
+% #1: value
+\cs_new:Npn \bin_write_byte:n #1
+{
+    \iow_now:Nn \g_tmpa_iow {#1}
+}
+
+
+% #1: values
+\cs_new:Npn \bin_write_byte_clist:n #1
+{
+    \clist_map_inline:nn {#1}
+    {
+        \bin_write_byte:n {##1}
+    }
+}
+
+
+% writing (unsigned) binary value in small endian
+% #1: value
+% #2: number of bins
+\int_new:N \l_bin_tmpa_int
+\int_new:N \l_bin_tmpb_int
+\cs_new:Npn \bin_write_bytes_se:nn #1#2
+{
+    \int_set:Nn \l_bin_tmpa_int {#1}
+    \int_step_inline:nn {#2}
+    {
+        % get current byte
+        \int_set:Nn \l_bin_tmpb_int {\int_mod:nn {\l_bin_tmpa_int} {256}}
+        % proceed to next byte
+        \int_set:Nn \l_bin_tmpa_int {\int_div_truncate:nn {\l_bin_tmpa_int} {256}}
+        % write output
+        \exp_args:Nx \bin_write_byte:n {\int_use:N \l_bin_tmpb_int}
+    }
+}
+
+\cs_generate_variant:Nn \bin_write_bytes_se:nn {xn,xx}
+
+% #1: width
+% #2: height
+\int_new:N \l_bin_tmpc_int
+\cs_set:Npn \bin_write_bmp_header:nn #1#2
+{
+    % BMP file header
+
+    \bin_write_byte:n {66} % B
+    \bin_write_byte:n {77} % M
+    
+    % compute and write file size
+    \int_set:Nn \l_bin_tmpc_int {54 + 3 * (#1) * (#2)}
+    \bin_write_bytes_se:xn {\int_use:N \l_bin_tmpc_int} {4}
+
+    \bin_write_byte_clist:n {0,0,0,0,54,0,0,0}
+
+    % BMP info header
+    \bin_write_byte_clist:n {40,0,0,0}
+    \bin_write_bytes_se:xn {#1} {4} % width
+    \bin_write_bytes_se:xn {#2} {4} % height
+    \bin_write_byte_clist:n {1,0,24,0} % bytes per pixel
+    \int_step_inline:nn {24}
+    {
+        \bin_write_byte:n {0}
+    }
+}
+
+
+\tl_new:N \l_bmp_row_tl
+\tl_new:N \l_bmp_col_tl
+\newcommand{\RenderToBMP}[1]
+{
+    % we do not want to deal with padding (lazy), so just make sure width is mulitple of 4
+    \int_compare:nF {\int_mod:nn {\ImageWidth} {4} = 0}
+    {
+        \GenericError{}{BMP~width~must~be~multiple~of~4}{}{}
+    }
+
+    \bin_open:n {#1}
+    
+    % write BMP header
+    \bin_write_bmp_header:nn {\ImageWidth} {\ImageHeight}
+
+    % write BMP data
+    \int_step_variable:nNn {\ImageHeight} \l_bmp_row_tl 
+    {
+        \iow_term:x {Rendering~BMP~line~\l_bmp_row_tl}
+        \int_step_variable:nNn {\ImageWidth} \l_bmp_col_tl 
+        {
+            \bin_write_byte_clist:n {255,255,255} % one pixel
+        }
+    }
+
+    \bin_close:
+}
+
+
+\DeclareConstI{ImageHeight}{128}
+\DeclareConstI{ImageWidth}{128}
+\DeclareConstFP{kSpec}{0.8} % specular reflection constant
+\DeclareConstFP{kDiff}{0.8} % diffuse reflection constant
+\DeclareVec{AmbientColor}{0.05,0.05,0.05}
+\DeclareVec{LightColor}{1.0,1.0,1.0}
+\DeclareVec{ObjectColor}{1.0,0.0,0.0}
+
+\RenderToBMP{render1.bmp}
+
+\ExplSyntaxOff
+
+\end{document}
+

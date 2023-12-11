@@ -19,6 +19,7 @@ Use the `Makefile` to generate the images.
 
 - LaTeX cannot output binary file directly (see discussion [here](https://tex.stackexchange.com/questions/8729/write-non-printable-ascii-characters-to-a-file), LaTeX can output arbitrary bytes, but it will also output `\x0A` after each `\write` call)
     - To cope with this issue, we use LaTeX to output the byte in decimal format, and use Python to convert them into binary
+    - Note that if LuaTeX is used, Lua can be used to write binary output
 
 - LaTeX cannot include BMP files directly
     - For simplicity, the rendered pixels are saved using the BMP format
